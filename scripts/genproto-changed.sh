@@ -8,6 +8,7 @@ if [ -z "${_GENPROTO_REEXEC:-}" ]; then
 fi
 # Generate Go + gRPC (+ validate where applicable) only for .proto files that differ from Git.
 # Mirrors fulfillment_planogram_be/Makefile (and background repo when detected).
+# Repos with gkit/main.go (e.g. fulfillment_gateway_external) also run gkit + swag like Makefile refresh.
 #
 # Usage:
 #   genproto-changed                 # from repo root or any subdir; diff vs HEAD (staged+unstaged)
@@ -186,6 +187,15 @@ if [[ ${#validate_files[@]} -gt 0 ]]; then
     --go_out=. \
     --validate_out=lang=go:. \
     "${validate_files[@]}"
+fi
+
+# fulfillment_gateway_external Makefile refresh: gkit + swag (not used by planogram BE).
+if [[ -f gkit/main.go ]]; then
+  echo "+ go run gkit/main.go" >&2
+  go run gkit/main.go
+  echo "Starting swagger generating"
+  swag fmt
+  swag init --parseDependency -g cmd/main.go --exclude application/routing/delivery/handler/media/file/upload_stream.go
 fi
 
 echo "genproto-changed: done (${#common_files[@]} common dir refresh, ${#validate_files[@]} validate file(s))."

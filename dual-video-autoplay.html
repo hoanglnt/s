@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Side-by-side autoplay</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #0a0a0a;
+      color: #e8e8e8;
+      font-family: system-ui, sans-serif;
+    }
+    h1 {
+      margin: 0;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      border-bottom: 1px solid #222;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      height: calc(100% - 42px);
+      gap: 0;
+    }
+    .cell {
+      flex: 1 1 50%;
+      min-width: 280px;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #222;
+      background: #000;
+    }
+    .cell:last-child { border-right: none; }
+    .label {
+      padding: 8px 12px;
+      font-size: 12px;
+      color: #888;
+      flex-shrink: 0;
+    }
+    video {
+      width: 100%;
+      flex: 1;
+      object-fit: contain;
+      background: #000;
+    }
+    .err {
+      padding: 12px;
+      font-size: 12px;
+      color: #f66;
+    }
+  </style>
+</head>
+<body>
+  <h1>Two streams · autoplay (muted)</h1>
+  <div class="row">
+    <div class="cell">
+      <div class="label">MP4</div>
+      <video
+        id="vMp4"
+        playsinline
+        muted
+        autoplay
+        controls
+        src="https://ffm-gw-external-qc.inshasaki.com/api/v1/filesmanagement/wms/media/b4a65355-4145-4a65-b148-cbfc162692fatestMovFlags2.mp4"
+      ></video>
+      <div id="errMp4" class="err" hidden></div>
+    </div>
+    <div class="cell">
+      <div class="label">HLS (m3u8)</div>
+      <video id="vHls" playsinline muted autoplay controls></video>
+      <div id="errHls" class="err" hidden></div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const M3U8 =
+        "https://hsk-wms-media-qc-cf.inshasaki.com/videos/734386ff-8e18-4cf9-96b2-25ffb17df885/master.m3u8";
+      const v = document.getElementById("vHls");
+      const err = document.getElementById("errHls");
+
+      function showErr(msg) {
+        err.textContent = msg;
+        err.hidden = false;
+      }
+
+      if (v.canPlayType("application/vnd.apple.mpegurl")) {
+        v.src = M3U8;
+        v.addEventListener("error", function () {
+          showErr("Native HLS failed (Safari path). Check URL / CORS / auth.");
+        });
+      } else if (window.Hls && Hls.isSupported()) {
+        const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+        hls.loadSource(M3U8);
+        hls.attachMedia(v);
+        hls.on(Hls.Events.ERROR, function (_, data) {
+          if (data.fatal) {
+            showErr("HLS fatal: " + (data.type || "") + " " + (data.details || ""));
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                hls.startLoad();
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                hls.recoverMediaError();
+                break;
+              default:
+                hls.destroy();
+                break;
+            }
+          }
+        });
+      } else {
+        showErr("HLS not supported in this browser.");
+      }
+
+      // Browsers may still block autoplay until metadata; nudge play.
+      [document.getElementById("vMp4"), v].forEach(function (el) {
+        el.addEventListener(
+          "loadeddata",
+          function () {
+            el.play().catch(function () {});
+          },
+          { once: true }
+        );
+        el.play().catch(function () {});
+      });
+    })();
+  </script>
+</body>
+</html>
